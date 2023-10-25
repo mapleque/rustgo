@@ -1,6 +1,6 @@
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Chess {
-    IsEmpty,
+    Empty,
     Black,
     White,
 }
@@ -8,7 +8,7 @@ pub enum Chess {
 impl std::fmt::Display for Chess {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Chess::IsEmpty => write!(f, "{}", "."),
+            Chess::Empty => write!(f, "{}", "."),
             Chess::Black => write!(f, "{}", "x"),
             Chess::White => write!(f, "{}", "o"),
         }
@@ -36,7 +36,7 @@ impl Board {
             BoardSize::Small => 9,
         };
         Board {
-            coord: [Chess::IsEmpty; 19 * 19],
+            coord: [Chess::Empty; 19 * 19],
             size: i,
             mode,
         }
@@ -51,7 +51,7 @@ impl Board {
     // del a chess from the point
     pub fn del(&mut self, x: usize, y: usize) -> Result<(), String> {
         let i = self.point_to_index(x, y)?;
-        self.coord[i] = Chess::IsEmpty;
+        self.coord[i] = Chess::Empty;
         Ok(())
     }
 
@@ -106,10 +106,10 @@ impl std::fmt::Display for Board {
             }
             if self.is_star_position(x, y).unwrap() {
                 match v {
-                    Chess::IsEmpty => {
+                    Chess::Empty => {
                         write!(f, "{}", "。")?;
                     }
-                    other => {
+                    _other => {
                         write!(f, "{} ", v)?;
                     }
                 }
@@ -126,5 +126,87 @@ impl std::fmt::Display for Board {
             write!(f, "{} ", ('a' as u8 + i as u8) as char)?;
         }
         write!(f, "{}", "\n")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_mode_has_correct_star_position() {
+        let g = Board::new(BoardSize::Normal);
+        // star points
+        assert!(g.is_star_position(4, 4).unwrap());
+        assert!(g.is_star_position(4, 10).unwrap());
+        assert!(g.is_star_position(4, 16).unwrap());
+        assert!(g.is_star_position(10, 4).unwrap());
+        assert!(g.is_star_position(10, 10).unwrap());
+        assert!(g.is_star_position(10, 16).unwrap());
+        assert!(g.is_star_position(16, 4).unwrap());
+        assert!(g.is_star_position(16, 10).unwrap());
+        assert!(g.is_star_position(16, 16).unwrap());
+        // not star points
+        assert!(!g.is_star_position(1, 1).unwrap());
+        assert!(!g.is_star_position(3, 3).unwrap());
+        assert!(!g.is_star_position(7, 7).unwrap());
+        let g = Board::new(BoardSize::Medium);
+        // star points
+        assert!(g.is_star_position(4, 4).unwrap());
+        assert!(g.is_star_position(4, 7).unwrap());
+        assert!(g.is_star_position(4, 10).unwrap());
+        assert!(g.is_star_position(7, 4).unwrap());
+        assert!(g.is_star_position(7, 7).unwrap());
+        assert!(g.is_star_position(7, 10).unwrap());
+        assert!(g.is_star_position(10, 4).unwrap());
+        assert!(g.is_star_position(10, 7).unwrap());
+        assert!(g.is_star_position(10, 10).unwrap());
+        // not star points
+        assert!(!g.is_star_position(1, 1).unwrap());
+        assert!(!g.is_star_position(3, 3).unwrap());
+        assert!(!g.is_star_position(5, 5).unwrap());
+        let g = Board::new(BoardSize::Small);
+        // star points
+        assert!(g.is_star_position(3, 3).unwrap());
+        assert!(g.is_star_position(3, 5).unwrap());
+        assert!(g.is_star_position(3, 7).unwrap());
+        assert!(g.is_star_position(5, 3).unwrap());
+        assert!(g.is_star_position(5, 5).unwrap());
+        assert!(g.is_star_position(5, 7).unwrap());
+        assert!(g.is_star_position(7, 3).unwrap());
+        assert!(g.is_star_position(7, 5).unwrap());
+        assert!(g.is_star_position(7, 7).unwrap());
+        // not star points
+        assert!(!g.is_star_position(1, 1).unwrap());
+        assert!(!g.is_star_position(4, 4).unwrap());
+    }
+
+    #[test]
+    fn each_mode_has_correct_add_position() {
+        let mut g = Board::new(BoardSize::Normal);
+        g.add(Chess::Black, 1, 1).unwrap();
+        assert!(g.coord[0] == Chess::Black);
+        assert!(g.coord[1] == Chess::Empty);
+        g.add(Chess::White, 2, 1).unwrap();
+        assert!(g.coord[1] == Chess::White);
+        assert!(g.coord[2] == Chess::Empty);
+        assert!(g.coord[19] == Chess::Empty);
+        g.add(Chess::Black, 1, 2).unwrap();
+        assert!(g.coord[0] == Chess::Black);
+        assert!(g.coord[1] == Chess::White);
+        assert!(g.coord[19] == Chess::Black);
+        g.add(Chess::White, 19, 19).unwrap();
+        assert!(g.coord[0] == Chess::Black);
+        assert!(g.coord[1] == Chess::White);
+        assert!(g.coord[19] == Chess::Black);
+        assert!(g.coord[360] == Chess::White);
+        g.del(1, 2).unwrap();
+        assert!(g.coord[19] == Chess::Empty);
+        for i in 2..359 {
+            if g.coord[i] != Chess::Empty {
+                println!("index {} is not empty", i);
+            }
+            assert!(g.coord[i] == Chess::Empty);
+        }
     }
 }

@@ -2,7 +2,7 @@ use crate::basic::{Board, BoardSize, Chess};
 
 pub struct Game {
     board: Board,
-    pub currentPlayer: Player,
+    pub current_player: Player,
 }
 
 pub enum Player {
@@ -32,7 +32,7 @@ impl Game {
     pub fn new(size: BoardSize) -> Game {
         Game {
             board: Board::new(size),
-            currentPlayer: Player::Black,
+            current_player: Player::Black,
         }
     }
 
@@ -40,27 +40,24 @@ impl Game {
         match cmd {
             Cmd::Pass => self.change_player(),
             Cmd::Step(p) => self.step(p),
-        };
-        Ok(())
+        }
     }
 
     pub fn back(&mut self) -> Result<(), String> {
         Ok(())
     }
 
-    pub fn estimate() {}
-
     fn change_player(&mut self) -> Result<(), String> {
-        match self.currentPlayer {
-            Player::Black => self.currentPlayer = Player::White,
-            Player::White => self.currentPlayer = Player::Black,
+        match self.current_player {
+            Player::Black => self.current_player = Player::White,
+            Player::White => self.current_player = Player::Black,
         };
         Ok(())
     }
 
     fn step(&mut self, cmd: String) -> Result<(), String> {
         let (x, y) = Cmd::cmd_to_point(cmd)?;
-        let chess = match self.currentPlayer {
+        let chess = match self.current_player {
             Player::Black => Chess::Black,
             Player::White => Chess::White,
         };
@@ -72,12 +69,26 @@ impl Game {
 impl std::fmt::Display for Game {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "\n")?;
-        match self.currentPlayer {
+        match self.current_player {
             Player::Black => write!(f, "White   {} > Black", 0)?,
             Player::White => write!(f, "White < {}   Black", 0)?,
         };
         write!(f, "\n")?;
         write!(f, "\n")?;
         write!(f, "{}", self.board)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cmd_to_point() {
+        assert!(Cmd::cmd_to_point(String::from("aa")).unwrap() == (1, 1));
+        assert!(Cmd::cmd_to_point(String::from("aa")).unwrap() != (1, 2));
+        assert!(Cmd::cmd_to_point(String::from("ss")).unwrap() == (19, 19));
+        assert!(Cmd::cmd_to_point(String::from("as")).unwrap() == (1, 19));
+        assert!(Cmd::cmd_to_point(String::from("sa")).unwrap() == (19, 1));
     }
 }

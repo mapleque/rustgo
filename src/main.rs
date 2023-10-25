@@ -25,7 +25,7 @@ fn main() {
 
     loop {
         println!();
-        match g.currentPlayer {
+        match g.current_player {
             Player::Black => println!("turn to Black (aa-zz or pass):"),
             Player::White => println!("turn to White (aa-zz or pass):"),
         };
