@@ -14,18 +14,20 @@ pub trait LinkedTreeOperation<T> {
     where
         Self: Sized;
     fn child_len(&self) -> usize;
+    fn ptr(&self) -> Self;
 }
 
-type LinkedTree<T> = Rc<RefCell<TreeNode<T>>>;
+pub type LinkedTree<T> = Rc<RefCell<TreeNode<T>>>;
 
-struct TreeNode<T> {
+#[derive(Debug)]
+pub struct TreeNode<T> {
     parent: Option<Weak<RefCell<TreeNode<T>>>>,
     children: Vec<Rc<RefCell<TreeNode<T>>>>,
     val: T,
 
     // count of current node with all children recursive
     size: usize,
-    // current node deepth to root, root is 1
+    // current node deepth to root, root is 0
     deepth: usize,
 }
 
@@ -37,7 +39,7 @@ impl<T> TreeNode<T> {
             val,
 
             size: 1,
-            deepth: 1,
+            deepth: 0,
         }
     }
     fn inc_size(&mut self) {
@@ -96,6 +98,9 @@ impl<T: Clone> LinkedTreeOperation<T> for LinkedTree<T> {
         }
         Some(self.borrow().children[n].clone())
     }
+    fn ptr(&self) -> Self {
+        Rc::clone(&self)
+    }
 }
 
 #[cfg(test)]
@@ -112,10 +117,10 @@ mod tests {
         assert!(n2.size() == 2);
         assert!(n3.size() == 1);
         assert!(n4.size() == 1);
-        assert!(n1.deepth() == 1);
-        assert!(n2.deepth() == 2);
-        assert!(n3.deepth() == 2);
-        assert!(n4.deepth() == 3);
+        assert!(n1.deepth() == 0);
+        assert!(n2.deepth() == 1);
+        assert!(n3.deepth() == 1);
+        assert!(n4.deepth() == 2);
         assert!(n1.val().eq("1"));
         assert!(n2.val().eq("2"));
         assert!(n3.val().eq("3"));

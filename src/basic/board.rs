@@ -42,6 +42,11 @@ impl Board {
         }
     }
 
+    pub fn is(&self, x: usize, y: usize, t: Chess) -> Result<bool, String> {
+        let i = self.point_to_index(x, y)?;
+        Ok(self.coord[i] == t)
+    }
+
     // add a chess to the point
     pub fn add(&mut self, r: Chess, x: usize, y: usize) -> Result<(), String> {
         let i = self.point_to_index(x, y)?;
