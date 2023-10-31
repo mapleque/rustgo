@@ -70,8 +70,8 @@ impl Game {
     }
 
     pub fn redo(&mut self, index: usize) -> Result<(), String> {
-        if index > self.current_cmd_node.child_len() {
-            return Err(format!("can not redo"));
+        if index >= self.current_cmd_node.child_len() {
+            return Err(format!("no redo steps {:?}", index));
         }
         let cmd = self.current_cmd_node.child(index).unwrap().ptr();
         self.current_cmd_node = cmd.ptr();
@@ -80,6 +80,15 @@ impl Game {
             Cmd::Step(p) => self.step(p),
             other => Err(format!("invalid redo cmd: {:?}", other)),
         }
+    }
+
+    pub fn redo_list(&self) -> Vec<Cmd> {
+        let mut ret: Vec<Cmd> = vec![];
+        for i in 0..self.current_cmd_node.child_len() {
+            let cmd = self.current_cmd_node.child(i).unwrap().ptr();
+            ret.push(cmd.val());
+        }
+        ret
     }
 
     pub fn step_count(&self) -> usize {
@@ -179,10 +188,12 @@ mod tests {
         // TODO assert!(g.board.is(1, 1, Chess::Black).unwrap());
         assert!(g.step_count() == 3);
         assert!(g.next_player() == Player::White);
+        assert!(g.redo_list().len() == 1);
         g.redo(0).unwrap();
         assert!(g.board.is(1, 2, Chess::White).unwrap());
         // TODO assert!(g.board.is(1, 1, Chess::Empty).unwrap());
         assert!(g.step_count() == 4);
         assert!(g.next_player() == Player::Black);
+        assert!(g.redo_list().len() == 0);
     }
 }
