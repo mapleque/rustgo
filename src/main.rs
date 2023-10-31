@@ -2,23 +2,30 @@ mod basic;
 mod util;
 
 use crate::basic::{BoardSize, Cmd, Game, Player};
+use std::env;
 use std::io;
 
+fn show_usage() {
+    println!("Usage:");
+    println!("\t{} {}", "normal or empty", "use 19 * 19 board size");
+    println!("\t{} {}", "medium", "use 13 * 13 board size");
+    println!("\t{} {}", "small", "use 9 * 9 board size");
+}
+
 fn main() {
-    let mut g = loop {
-        println!("Please choose board size:");
-        println!("  1: 19*19, 2: 13*13, 3: 9*9");
-        println!("your choose is (1 or 2 or 3):");
-        let mut buffer = String::new();
-        io::stdin().read_line(&mut buffer).unwrap();
-        if buffer == "1\n" {
-            break Game::new(BoardSize::Normal);
-        } else if buffer == "2\n" {
-            break Game::new(BoardSize::Medium);
-        } else if buffer == "3\n" {
-            break Game::new(BoardSize::Small);
-        } else {
-            println!("invalid input: {:?}", buffer.as_bytes());
+    let args: Vec<String> = env::args().collect();
+
+    let mut g = if args.len() < 2 || args[1].eq("normal") {
+        Game::new(BoardSize::Normal)
+    } else {
+        let arg = &args[1];
+        match &arg[..] {
+            "medium" => Game::new(BoardSize::Medium),
+            "small" => Game::new(BoardSize::Small),
+            _ => {
+                show_usage();
+                panic!("invalid args");
+            }
         }
     };
 
@@ -27,8 +34,8 @@ fn main() {
     loop {
         println!();
         match g.next_player() {
-            Player::Black => println!("turn to Black (aa-zz or pass):"),
-            Player::White => println!("turn to White (aa-zz or pass):"),
+            Player::Black => println!("Black (aa-zz or pass):"),
+            Player::White => println!("White (aa-zz or pass):"),
         };
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer).unwrap();

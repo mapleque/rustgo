@@ -15,6 +15,7 @@ impl std::fmt::Display for Chess {
     }
 }
 
+#[derive(Clone)]
 pub enum BoardSize {
     Normal,
     Medium,

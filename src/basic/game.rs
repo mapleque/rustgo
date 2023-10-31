@@ -3,6 +3,7 @@ use crate::util::{LinkedTree, LinkedTreeOperation};
 
 pub struct Game {
     board: Board,
+    board_mode: BoardSize,
     current_player: Player,
     history: LinkedTree<Cmd>,
     current_cmd_node: LinkedTree<Cmd>,
@@ -38,7 +39,8 @@ impl Game {
     pub fn new(size: BoardSize) -> Game {
         let cmd = LinkedTree::new_tree(Cmd::Start);
         Game {
-            board: Board::new(size),
+            board: Board::new(size.clone()),
+            board_mode: size,
             current_player: Player::Black,
             history: cmd.ptr(),
             current_cmd_node: cmd.ptr(),
@@ -125,9 +127,14 @@ impl Game {
 impl std::fmt::Display for Game {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "\n")?;
+        let indent = match self.board_mode {
+            BoardSize::Normal => "        ",
+            BoardSize::Medium => "  ",
+            BoardSize::Small => "",
+        };
         match self.current_player {
-            Player::Black => write!(f, "White   {} > Black", 0)?,
-            Player::White => write!(f, "White < {}   Black", 0)?,
+            Player::Black => write!(f, "{}White(o)   [{}] > Black(x)", indent, self.step_count())?,
+            Player::White => write!(f, "{}White(o) < [{}]   Black(x)", indent, self.step_count())?,
         };
         write!(f, "\n")?;
         write!(f, "\n")?;
