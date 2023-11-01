@@ -1,12 +1,11 @@
-use crate::basic::{Board, BoardSize, Chess};
+use crate::basic::{Board, BoardSize, Stone};
 use crate::util::{LinkedTree, LinkedTreeOperation};
 
 pub struct Game {
-    board: Board,
-    board_mode: BoardSize,
+    current_board: Board,
     current_player: Player,
-    history: LinkedTree<Cmd>,
-    current_cmd_node: LinkedTree<Cmd>,
+    history_cmd: LinkedTree<Cmd>,
+    current_cmd: LinkedTree<Cmd>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -39,11 +38,10 @@ impl Game {
     pub fn new(size: BoardSize) -> Game {
         let cmd = LinkedTree::new_tree(Cmd::Start);
         Game {
-            board: Board::new(size.clone()),
-            board_mode: size,
+            current_board: Board::new(size.clone()),
             current_player: Player::Black,
-            history: cmd.ptr(),
-            current_cmd_node: cmd.ptr(),
+            history_cmd: cmd.ptr(),
+            current_cmd: cmd.ptr(),
         }
     }
 
@@ -57,11 +55,11 @@ impl Game {
     }
 
     pub fn undo(&mut self) -> Result<(), String> {
-        if self.current_cmd_node.parent().is_none() {
+        if self.current_cmd.parent().is_none() {
             return Err(format!("can not undo"));
         }
-        let cmd = self.current_cmd_node.val();
-        self.current_cmd_node = self.current_cmd_node.parent().unwrap().ptr();
+        let cmd = self.current_cmd.val();
+        self.current_cmd = self.current_cmd.parent().unwrap().ptr();
         match cmd {
             Cmd::Pass => self.change_player(),
             Cmd::Step(p) => self.unstep(p),
@@ -70,11 +68,11 @@ impl Game {
     }
 
     pub fn redo(&mut self, index: usize) -> Result<(), String> {
-        if index >= self.current_cmd_node.child_len() {
+        if index >= self.current_cmd.child_len() {
             return Err(format!("no redo steps {:?}", index));
         }
-        let cmd = self.current_cmd_node.child(index).unwrap().ptr();
-        self.current_cmd_node = cmd.ptr();
+        let cmd = self.current_cmd.child(index).unwrap().ptr();
+        self.current_cmd = cmd.ptr();
         match cmd.val() {
             Cmd::Pass => self.change_player(),
             Cmd::Step(p) => self.step(p),
@@ -84,15 +82,15 @@ impl Game {
 
     pub fn redo_list(&self) -> Vec<Cmd> {
         let mut ret: Vec<Cmd> = vec![];
-        for i in 0..self.current_cmd_node.child_len() {
-            let cmd = self.current_cmd_node.child(i).unwrap().ptr();
+        for i in 0..self.current_cmd.child_len() {
+            let cmd = self.current_cmd.child(i).unwrap().ptr();
             ret.push(cmd.val());
         }
         ret
     }
 
     pub fn step_count(&self) -> usize {
-        self.current_cmd_node.deepth()
+        self.current_cmd.deepth()
     }
 
     pub fn next_player(&self) -> Player {
@@ -100,12 +98,12 @@ impl Game {
     }
 
     pub fn get_history(&self) -> LinkedTree<Cmd> {
-        self.history.ptr()
+        self.history_cmd.ptr()
     }
 
     fn add_history(&mut self, cmd: Cmd) {
-        let node = self.current_cmd_node.add_child(cmd);
-        self.current_cmd_node = node;
+        let node = self.current_cmd.add_child(cmd);
+        self.current_cmd = node;
     }
 
     fn change_player(&mut self) -> Result<(), String> {
@@ -118,17 +116,17 @@ impl Game {
 
     fn step(&mut self, cmd: String) -> Result<(), String> {
         let (x, y) = Cmd::cmd_to_point(cmd)?;
-        let chess = match self.current_player {
-            Player::Black => Chess::Black,
-            Player::White => Chess::White,
+        let stone = match self.current_player {
+            Player::Black => Stone::Black,
+            Player::White => Stone::White,
         };
-        self.board.add(chess, x, y)?;
+        self.current_board.add(stone, x, y)?;
         self.change_player()
     }
 
     fn unstep(&mut self, cmd: String) -> Result<(), String> {
         let (x, y) = Cmd::cmd_to_point(cmd)?;
-        self.board.del(x, y)?;
+        self.current_board.del(x, y)?;
         self.change_player()
     }
 }
@@ -136,7 +134,7 @@ impl Game {
 impl std::fmt::Display for Game {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "\n")?;
-        let indent = match self.board_mode {
+        let indent = match self.current_board.size() {
             BoardSize::Normal => "        ",
             BoardSize::Medium => "  ",
             BoardSize::Small => "",
@@ -147,7 +145,7 @@ impl std::fmt::Display for Game {
         };
         write!(f, "\n")?;
         write!(f, "\n")?;
-        write!(f, "{}", self.board)
+        write!(f, "{}", self.current_board)
     }
 }
 
@@ -168,30 +166,30 @@ mod tests {
     fn a_normal_game() {
         let mut g = Game::new(BoardSize::Normal);
         g.next(Cmd::Step("aa".to_string())).unwrap();
-        assert!(g.board.is(1, 1, Chess::Black).unwrap());
+        assert!(g.current_board.is(1, 1, Stone::Black).unwrap());
         assert!(g.step_count() == 1);
         assert!(g.next_player() == Player::White);
         g.next(Cmd::Step("ba".to_string())).unwrap();
-        assert!(g.board.is(2, 1, Chess::White).unwrap());
+        assert!(g.current_board.is(2, 1, Stone::White).unwrap());
         assert!(g.step_count() == 2);
         assert!(g.next_player() == Player::Black);
         g.next(Cmd::Pass).unwrap();
         assert!(g.step_count() == 3);
         assert!(g.next_player() == Player::White);
         g.next(Cmd::Step("ab".to_string())).unwrap();
-        assert!(g.board.is(1, 2, Chess::White).unwrap());
-        // TODO assert!(g.board.is(1, 1, Chess::Empty).unwrap());
+        assert!(g.current_board.is(1, 2, Stone::White).unwrap());
+        // TODO assert!(g.current_board.is(1, 1, Stone::Empty).unwrap());
         assert!(g.step_count() == 4);
         assert!(g.next_player() == Player::Black);
         g.undo().unwrap();
-        assert!(g.board.is(1, 2, Chess::Empty).unwrap());
-        // TODO assert!(g.board.is(1, 1, Chess::Black).unwrap());
+        assert!(g.current_board.is(1, 2, Stone::Empty).unwrap());
+        // TODO assert!(g.current_board.is(1, 1, Stone::Black).unwrap());
         assert!(g.step_count() == 3);
         assert!(g.next_player() == Player::White);
         assert!(g.redo_list().len() == 1);
         g.redo(0).unwrap();
-        assert!(g.board.is(1, 2, Chess::White).unwrap());
-        // TODO assert!(g.board.is(1, 1, Chess::Empty).unwrap());
+        assert!(g.current_board.is(1, 2, Stone::White).unwrap());
+        // TODO assert!(g.current_board.is(1, 1, Stone::Empty).unwrap());
         assert!(g.step_count() == 4);
         assert!(g.next_player() == Player::Black);
         assert!(g.redo_list().len() == 0);
