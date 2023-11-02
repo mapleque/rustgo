@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 pub trait LinkedTreeOperation<T> {
     fn new_tree(val: T) -> Self;
@@ -15,13 +15,14 @@ pub trait LinkedTreeOperation<T> {
         Self: Sized;
     fn child_len(&self) -> usize;
     fn ptr(&self) -> Self;
+    fn list_parents(&self) -> Vec<T>;
 }
 
 pub type LinkedTree<T> = Rc<RefCell<TreeNode<T>>>;
 
 #[derive(Debug)]
 pub struct TreeNode<T> {
-    parent: Option<Weak<RefCell<TreeNode<T>>>>,
+    parent: Option<Rc<RefCell<TreeNode<T>>>>,
     children: Vec<Rc<RefCell<TreeNode<T>>>>,
     val: T,
 
@@ -45,11 +46,7 @@ impl<T> TreeNode<T> {
     fn inc_size(&mut self) {
         self.size += 1;
         if let Some(parent) = &self.parent {
-            parent
-                .upgrade()
-                .expect("parent node has been dropped")
-                .borrow_mut()
-                .inc_size();
+            parent.borrow_mut().inc_size();
         }
     }
 }
@@ -62,7 +59,7 @@ impl<T: Clone> LinkedTreeOperation<T> for LinkedTree<T> {
     fn add_child(&self, val: T) -> Self {
         let mut node = TreeNode::new(val);
         node.deepth = Rc::clone(&self).borrow_mut().deepth + 1;
-        node.parent = Some(Rc::downgrade(self));
+        node.parent = Some(Rc::clone(&self));
 
         let rc_node = Rc::new(RefCell::new(node));
         self.borrow_mut().inc_size();
@@ -81,12 +78,7 @@ impl<T: Clone> LinkedTreeOperation<T> for LinkedTree<T> {
     fn parent(&self) -> Option<Self> {
         match &self.borrow().parent {
             None => None,
-            Some(parent) => Some(
-                parent
-                    .upgrade()
-                    .expect("parent node has been dropped")
-                    .clone(),
-            ),
+            Some(parent) => Some(parent.clone()),
         }
     }
     fn child_len(&self) -> usize {
@@ -100,6 +92,16 @@ impl<T: Clone> LinkedTreeOperation<T> for LinkedTree<T> {
     }
     fn ptr(&self) -> Self {
         Rc::clone(&self)
+    }
+    fn list_parents(&self) -> Vec<T> {
+        match &self.borrow().parent {
+            None => vec![self.val()],
+            Some(parent) => {
+                let mut ret = parent.list_parents();
+                ret.push(self.val());
+                return ret;
+            }
+        }
     }
 }
 
@@ -139,5 +141,10 @@ mod tests {
         assert!(n3.parent().unwrap().val().eq("1"));
         assert!(n4.parent().unwrap().val().eq("2"));
         assert!(n4.parent().unwrap().parent().unwrap().val().eq("1"));
+        let list = n4.list_parents();
+        assert!(list.len() == 3);
+        assert!(list[0].eq("1"));
+        assert!(list[1].eq("2"));
+        assert!(list[2].eq("4"));
     }
 }

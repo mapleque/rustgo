@@ -1,8 +1,18 @@
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub enum Stone {
     Empty,
     Black,
     White,
+}
+
+impl Stone {
+    pub fn another(&self) -> Stone {
+        match self {
+            Stone::Empty => Stone::Empty,
+            Stone::Black => Stone::White,
+            Stone::White => Stone::Black,
+        }
+    }
 }
 
 impl std::fmt::Display for Stone {
@@ -52,6 +62,11 @@ impl Board {
     pub fn is(&self, x: usize, y: usize, t: Stone) -> Result<bool, String> {
         let i = self.point_to_index(x, y)?;
         Ok(self.coord[i] == t)
+    }
+
+    pub fn at(&self, x: usize, y: usize) -> Result<Stone, String> {
+        let i = self.point_to_index(x, y)?;
+        Ok(self.coord[i].clone())
     }
 
     // add a stone to the point
@@ -144,7 +159,7 @@ impl std::fmt::Display for Board {
 // zip board data with follow rule:
 //  - 2 bit as 1 position
 //  - 0 for empty, 1 for black stone, 2 for white stone, 3 is illegal
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum BoardZip {
     // 19*19*2 = 361*2 = 128+128+128+128+128+128-46
     NormalBoardZip(u128, u128, u128, u128, u128, u128),

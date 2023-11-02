@@ -1,11 +1,11 @@
-use crate::basic::{Board, BoardSize, Stone};
+use crate::basic::*;
 use crate::util::{LinkedTree, LinkedTreeOperation};
 
 pub struct Game {
     current_board: Board,
     current_player: Player,
-    history_cmd: LinkedTree<Cmd>,
     current_cmd: LinkedTree<Cmd>,
+    current_zip_board: LinkedTree<BoardZip>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -36,48 +36,49 @@ impl Cmd {
 
 impl Game {
     pub fn new(size: BoardSize) -> Game {
-        let cmd = LinkedTree::new_tree(Cmd::Start);
+        let cmd_history = LinkedTree::new_tree(Cmd::Start);
+        let b = Board::new(size.clone());
+        let zb = zip_board(&b);
+        let zb_history = LinkedTree::new_tree(zb).ptr();
         Game {
-            current_board: Board::new(size.clone()),
+            current_board: b,
             current_player: Player::Black,
-            history_cmd: cmd.ptr(),
-            current_cmd: cmd.ptr(),
+            current_cmd: cmd_history.ptr(),
+            current_zip_board: zb_history.ptr(),
         }
     }
 
     pub fn next(&mut self, cmd: Cmd) -> Result<(), String> {
-        self.add_history(cmd.clone());
-        match cmd {
-            Cmd::Pass => self.change_player(),
-            Cmd::Step(p) => self.step(p),
-            other => Err(format!("invalid next cmd: {:?}", other)),
-        }
+        match cmd.clone() {
+            Cmd::Pass => self.change_player()?,
+            Cmd::Step(p) => self.step(p)?,
+            other => {
+                return Err(format!("invalid next cmd: {:?}", other));
+            }
+        };
+        self.add_cmd_history(cmd);
+        self.add_board_history();
+        Ok(())
     }
 
     pub fn undo(&mut self) -> Result<(), String> {
         if self.current_cmd.parent().is_none() {
             return Err(format!("can not undo"));
         }
-        let cmd = self.current_cmd.val();
         self.current_cmd = self.current_cmd.parent().unwrap().ptr();
-        match cmd {
-            Cmd::Pass => self.change_player(),
-            Cmd::Step(p) => self.unstep(p),
-            other => Err(format!("invalid undo cmd: {:?}", other)),
-        }
+        self.current_zip_board = self.current_zip_board.parent().unwrap().ptr();
+        self.current_board = unzip_board(&self.current_zip_board.val());
+        self.change_player()
     }
 
     pub fn redo(&mut self, index: usize) -> Result<(), String> {
         if index >= self.current_cmd.child_len() {
             return Err(format!("no redo steps {:?}", index));
         }
-        let cmd = self.current_cmd.child(index).unwrap().ptr();
-        self.current_cmd = cmd.ptr();
-        match cmd.val() {
-            Cmd::Pass => self.change_player(),
-            Cmd::Step(p) => self.step(p),
-            other => Err(format!("invalid redo cmd: {:?}", other)),
-        }
+        self.current_cmd = self.current_cmd.child(index).unwrap().ptr();
+        self.current_zip_board = self.current_zip_board.child(index).unwrap().ptr();
+        self.current_board = unzip_board(&self.current_zip_board.val());
+        self.change_player()
     }
 
     pub fn redo_list(&self) -> Vec<Cmd> {
@@ -97,13 +98,15 @@ impl Game {
         self.current_player.clone()
     }
 
-    pub fn get_history(&self) -> LinkedTree<Cmd> {
-        self.history_cmd.ptr()
-    }
-
-    fn add_history(&mut self, cmd: Cmd) {
+    fn add_cmd_history(&mut self, cmd: Cmd) {
         let node = self.current_cmd.add_child(cmd);
         self.current_cmd = node;
+    }
+
+    fn add_board_history(&mut self) {
+        let zb = zip_board(&self.current_board);
+        let node = self.current_zip_board.add_child(zb);
+        self.current_zip_board = node;
     }
 
     fn change_player(&mut self) -> Result<(), String> {
@@ -120,13 +123,14 @@ impl Game {
             Player::Black => Stone::Black,
             Player::White => Stone::White,
         };
-        self.current_board.add(stone, x, y)?;
-        self.change_player()
-    }
-
-    fn unstep(&mut self, cmd: String) -> Result<(), String> {
-        let (x, y) = Cmd::cmd_to_point(cmd)?;
-        self.current_board.del(x, y)?;
+        check_if_empty(&self.current_board, x, y)?;
+        self.current_board = check_if_never_repeat_with_new_stone(
+            &self.current_board,
+            stone,
+            x,
+            y,
+            self.current_zip_board.list_parents(),
+        )?;
         self.change_player()
     }
 }
@@ -178,18 +182,18 @@ mod tests {
         assert!(g.next_player() == Player::White);
         g.next(Cmd::Step("ab".to_string())).unwrap();
         assert!(g.current_board.is(1, 2, Stone::White).unwrap());
-        // TODO assert!(g.current_board.is(1, 1, Stone::Empty).unwrap());
+        assert!(g.current_board.is(1, 1, Stone::Empty).unwrap());
         assert!(g.step_count() == 4);
         assert!(g.next_player() == Player::Black);
         g.undo().unwrap();
         assert!(g.current_board.is(1, 2, Stone::Empty).unwrap());
-        // TODO assert!(g.current_board.is(1, 1, Stone::Black).unwrap());
+        assert!(g.current_board.is(1, 1, Stone::Black).unwrap());
         assert!(g.step_count() == 3);
         assert!(g.next_player() == Player::White);
         assert!(g.redo_list().len() == 1);
         g.redo(0).unwrap();
         assert!(g.current_board.is(1, 2, Stone::White).unwrap());
-        // TODO assert!(g.current_board.is(1, 1, Stone::Empty).unwrap());
+        assert!(g.current_board.is(1, 1, Stone::Empty).unwrap());
         assert!(g.step_count() == 4);
         assert!(g.next_player() == Player::Black);
         assert!(g.redo_list().len() == 0);
