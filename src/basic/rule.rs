@@ -2,7 +2,7 @@ use crate::basic::{unzip_board, zip_board};
 use crate::basic::{Board, BoardZip, Stone};
 use std::collections::HashSet;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct Point {
     stone: Stone,
     x: usize,
@@ -36,7 +36,6 @@ pub fn check_if_never_repeat_with_new_stone(
     remove_lose_liberty_stones(&mut nb, x, y)?;
     let nzb = zip_board(&nb);
     for b in board_history {
-        println!("check repeat\n{}\n{}", unzip_board(&nzb), unzip_board(&b));
         if nzb == b {
             return Err(format!("this point ({},{}) has same scene before", x, y));
         }
@@ -66,9 +65,8 @@ pub fn remove_lose_liberty_stones(board: &mut Board, x: usize, y: usize) -> Resu
 fn neighbour_at(board: &Board, x: usize, y: usize) -> Vec<Point> {
     let mut ret = vec![];
     for (nx, ny) in vec![(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] {
-        match board.at(nx, ny) {
-            Ok(stone) => ret.push(Point::new(stone, nx, ny)),
-            Err(_) => continue,
+        if let Ok(stone) = board.at(nx, ny) {
+            ret.push(Point::new(stone, nx, ny));
         }
     }
     ret
@@ -76,7 +74,8 @@ fn neighbour_at(board: &Board, x: usize, y: usize) -> Vec<Point> {
 
 // calculate liberty of the block start from target point
 fn calc_liberty(board: &Board, x: usize, y: usize) -> usize {
-    let block = get_block(board, x, y);
+    let mut block = HashSet::new();
+    get_block(board, x, y, &mut block);
     let mut liberty: HashSet<Point> = HashSet::new();
     for bp in block.iter() {
         for np in neighbour_at(board, bp.x, bp.y) {
@@ -89,21 +88,23 @@ fn calc_liberty(board: &Board, x: usize, y: usize) -> usize {
 }
 
 // return a set of stones combine to target point, which stones are same
-fn get_block(board: &Board, x: usize, y: usize) -> HashSet<Point> {
-    let mut ret: HashSet<Point> = HashSet::new();
+fn get_block(board: &Board, x: usize, y: usize, block: &mut HashSet<Point>) {
     let stone = board.at(x, y).unwrap();
-    ret.insert(Point::new(stone, x, y));
+    block.insert(Point::new(stone, x, y));
     for p in neighbour_at(board, x, y) {
         if p.stone == stone {
-            ret.insert(p);
+            let (px, py) = (p.x, p.y);
+            if block.insert(p) {
+                get_block(board, px, py, block);
+            }
         }
     }
-    ret
 }
 
 // remove all block stones start from target point
 fn remove_block(board: &mut Board, x: usize, y: usize) {
-    let block = get_block(&board, x, y);
+    let mut block = HashSet::new();
+    get_block(&board, x, y, &mut block);
     for bp in block.iter() {
         board.del(bp.x, bp.y).unwrap();
     }
@@ -175,6 +176,7 @@ mod tests {
         assert!(calc_liberty(&b, 1, 1) == 2);
     }
 
+    #[test]
     fn test_remove_lose_liberty_stones() {
         let mut b = Board::new(BoardSize::Small);
         b.add(Stone::Black, 1, 1);
@@ -188,6 +190,23 @@ mod tests {
         remove_lose_liberty_stones(&mut b, 1, 1).unwrap();
         assert!(b.is(1, 1, Stone::Black).unwrap());
         assert!(b.is(1, 2, Stone::Empty).unwrap());
+
+        let mut b = Board::new(BoardSize::Small);
+        b.add(Stone::White, 2, 2);
+        b.add(Stone::White, 3, 2);
+        b.add(Stone::White, 3, 1);
+        b.add(Stone::White, 5, 1);
+        b.add(Stone::White, 5, 2);
+        b.add(Stone::Black, 2, 1);
+        b.add(Stone::Black, 4, 1);
+        b.add(Stone::Black, 1, 2);
+        b.add(Stone::Black, 4, 2);
+        b.add(Stone::Black, 2, 3);
+        b.add(Stone::Black, 3, 3);
+        remove_lose_liberty_stones(&mut b, 4, 1).unwrap();
+        assert!(b.is(3, 1, Stone::Empty).unwrap());
+        assert!(b.is(3, 2, Stone::Empty).unwrap());
+        assert!(b.is(2, 2, Stone::Empty).unwrap());
     }
 
     #[test]
