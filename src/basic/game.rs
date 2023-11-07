@@ -1,5 +1,7 @@
 use crate::basic::*;
 use crate::util::{LinkedTree, LinkedTreeOperation};
+use std::time::SystemTime;
+use std::{fmt, fs};
 
 pub struct Game {
     current_board: Board,
@@ -34,6 +36,16 @@ impl Cmd {
     }
 }
 
+impl fmt::Display for Cmd {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Cmd::Start => write!(f, "start"),
+            Cmd::Pass => write!(f, "pass"),
+            Cmd::Step(p) => write!(f, "{}", p),
+        }
+    }
+}
+
 impl Game {
     pub fn new(size: BoardSize) -> Game {
         let cmd_history = LinkedTree::new_tree(Cmd::Start);
@@ -46,6 +58,59 @@ impl Game {
             current_cmd: cmd_history.ptr(),
             current_zip_board: zb_history.ptr(),
         }
+    }
+
+    pub fn load(filename: String) -> Result<Game, String> {
+        let data = fs::read_to_string(&filename).unwrap();
+        let lines: Vec<&str> = data.split('\n').collect();
+        if lines.len() < 3 {
+            return Err(format!("Err 1: invalid dump file {}", &filename));
+        }
+        if lines[0] != "mapleque/rustgo" {
+            return Err(format!("Err 2: invalid dump file {}", &filename));
+        }
+        let mut g: Game = match lines[1] {
+            "19" => Ok(Game::new(BoardSize::Normal)),
+            "13" => Ok(Game::new(BoardSize::Medium)),
+            "9" => Ok(Game::new(BoardSize::Small)),
+            _ => Err(format!("Err 3: invalid dump file {}", &filename)),
+        }?;
+        if lines[2] != "start" {
+            return Err(format!("Err 4: invalid dump file {}", &filename));
+        }
+        let lines = &lines[3..];
+
+        for &line in lines {
+            match line {
+                "pass" => g.next(Cmd::Pass)?,
+                "" => {}
+                other => g.next(Cmd::Step(other.to_string()))?,
+            }
+        }
+        Ok(g)
+    }
+
+    pub fn dump(&self) {
+        let filename = format!(
+            "dump_{}.txt",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+        let mut data = String::from("mapleque/rustgo\n");
+        match self.current_board.size() {
+            BoardSize::Normal => data.push_str("19\n"),
+            BoardSize::Medium => data.push_str("13\n"),
+            BoardSize::Small => data.push_str("9\n"),
+        }
+        let list = self.current_cmd.list_parents();
+        for cmd in list {
+            data.push_str(format!("{}\n", cmd).as_str());
+        }
+        fs::write(&filename, data)
+            .expect(&format!("Unable to write file: {}", &filename).to_string());
+        println!("dump to file: {}", &filename);
     }
 
     pub fn next(&mut self, cmd: Cmd) -> Result<(), String> {
